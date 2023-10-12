@@ -1,0 +1,69 @@
+import numpy as np
+import networkx as nx
+import torch
+from torch_geometric.data import Dataset, Data
+
+# Define the IoV environment
+class IoVDataset(Dataset):
+    def __init__(self, root, filename):
+        super(IoVDataset, self).__init__(root)
+        self.filename = filename
+
+        # Load the dataset
+        self.data = np.loadtxt(filename, delimiter=',')
+
+        # Create the graph
+        self.graph = nx.Graph()
+
+        # Add the vehicles as nodes
+        for vehicle in self.data:
+            self.graph.add_node(vehicle[0], vehicle[1], vehicle[2], vehicle[3], vehicle[4], vehicle[5], vehicle[6])
+
+        # Add edges between vehicles that are close to each other
+        for i in range(len(self.data)):
+            for j in range(i + 1, len(self.data)):
+                vehicle1 = self.data[i]
+                vehicle2 = self.data[j]
+
+                distance = np.linalg.norm(vehicle1[0:2] - vehicle2[0:2])
+                if distance < 100:
+                    self.graph.add_edge(vehicle1[0], vehicle2[0])
+
+    def __len__(self):
+        return len(self.data)
+
+    def get(self, idx):
+        vehicle = self.data[idx]
+
+        # Create the graph data object
+        graph_data = Data(x=torch.tensor(vehicle[3:7]), edge_index=torch.tensor(self.graph.edges).t())
+
+        # Set the target label
+        graph_data.y = torch.tensor(vehicle[2])
+
+        return graph_data
+
+# Load the dataset
+dataset = IoVDataset(root='.', filename='Rear-End_Vehicles_Collision_Detection_in_Internet_of_Vehicles_Dataset.csv')
+
+# Train the GNN model
+model = ...
+optimizer = ...
+
+# Train the model for 100 epochs
+for epoch in range(100):
+    for data in dataset:
+        model.zero_grad()
+
+        # Forward pass
+        output = model(data.x, data.edge_index)
+
+        # Loss function
+        loss = torch.nn.functional.cross_entropy(output, data.y)
+
+        # Backward pass
+        loss.backward()
+        optimizer.step()
+
+# Save the trained model
+torch.save(model.state_dict(), 'model.pt')
